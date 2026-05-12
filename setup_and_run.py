@@ -80,7 +80,7 @@ class SanhumSetup:
                 # Install base packages
                 subprocess.run(['sudo', 'apt', 'install', '-y', 
                               'qt5-qmake', 'qtbase5-dev', 'qtbase5-dev-tools',
-                              'build-essential', 'python3', 'python3-pip'], check=True)
+                              'build-essential', 'python3', 'python3-pip', 'pkg-config'], check=True)
                 
                 # Install GPIO libraries with fallback options
                 gpio_packages = ['libgpiod2', 'libgpiod-dev', 'libgpiod++-dev']

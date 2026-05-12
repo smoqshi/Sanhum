@@ -6,8 +6,6 @@ CONFIG -= app_bundle
 TARGET = Sanhum
 TEMPLATE = app
 
-LIBS += -lgpiodcxx
-
 SOURCES += \
     src/main.cpp \
     src/httpserver.cpp \
@@ -25,8 +23,21 @@ HEADERS += \
 win32 {
     # под Windows libgpiod нет – не линкуем
 } else {
-    # под Linux линкуем libgpiod/libgpiodcxx
-    LIBS += -lgpiodcxx -lgpiod
+    # под Linux проверяем наличие libgpiod/libgpiodcxx
+    # Check if GPIO libraries are available before linking
+    system(pkg-config --exists libgpiod) {
+        LIBS += -lgpiod
+        message("Found libgpiod - linking GPIO support")
+    } else {
+        warning("libgpiod not found - GPIO support disabled")
+    }
+    
+    system(pkg-config --exists libgpiodcxx) {
+        LIBS += -lgpiodcxx
+        message("Found libgpiodcxx - linking GPIO C++ support")
+    } else {
+        warning("libgpiodcxx not found - GPIO C++ support disabled")
+    }
 }
 
 DISTFILES += \
