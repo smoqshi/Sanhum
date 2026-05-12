@@ -165,6 +165,11 @@ export function enableConnectionTest() {
     connectionStatus = 'unknown';
 }
 
+// Export connection status for UI controls
+export function getConnectionStatus() {
+    return connectionStatus;
+}
+
 export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
     const now = Date.now();
     if (now - lastBaseCommandTime < COMMAND_RATE_LIMIT && !emergency) {
