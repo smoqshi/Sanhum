@@ -289,5 +289,71 @@ function clamp01(x) {
     return x;
 }
 
+// Connection control functionality
+export function initConnectionControls() {
+    // Connection control buttons
+    const btnStartConnection = document.getElementById('btnStartConnection');
+    const btnResetOutput = document.getElementById('btnResetOutput');
+    const btnRefreshStatus = document.getElementById('btnRefreshStatus');
+    
+    if (btnStartConnection) {
+        btnStartConnection.addEventListener('click', () => {
+            import('./network.js').then(module => {
+                module.enableConnectionTest();
+                btnStartConnection.textContent = 'Connecting...';
+                btnStartConnection.style.background = '#15803d';
+                btnStartConnection.style.borderColor = '#15803d';
+                
+                // Update button text when connection is established
+                setTimeout(() => {
+                    btnStartConnection.textContent = 'Connection Active';
+                }, 2000);
+            });
+        });
+    }
+    
+    if (btnResetOutput) {
+        btnResetOutput.addEventListener('click', () => {
+            // Reset all output values to 0
+            document.getElementById('lblVLinear').textContent = '0.00 m/s';
+            document.getElementById('lblVAngular').textContent = '0.0 °/s';
+            document.getElementById('lblTurret').textContent = '0.0 °';
+            document.getElementById('lblArm').textContent = '0.0 %';
+            document.getElementById('lblGripper').textContent = '0.0 %';
+            
+            // Reset sliders
+            document.getElementById('vLinear').value = 0;
+            document.getElementById('vAngular').value = 0;
+            document.getElementById('turretAngle').value = 0;
+            document.getElementById('armExtend').value = 0;
+            document.getElementById('gripper').value = 0;
+            
+            // Update slider value displays
+            document.getElementById('vLinearValue').textContent = '0.00';
+            document.getElementById('vAngularValue').textContent = '0';
+            document.getElementById('turretAngleValue').textContent = '0';
+            document.getElementById('armExtendValue').textContent = '0';
+            document.getElementById('gripperValue').textContent = '0';
+            
+            // Reset tank state
+            tank.resetPose();
+            
+            // Visual feedback
+            btnResetOutput.style.background = '#dc2626';
+            btnResetOutput.style.borderColor = '#dc2626';
+            setTimeout(() => {
+                btnResetOutput.style.background = '#111827';
+                btnResetOutput.style.borderColor = '#374151';
+            }, 500);
+        });
+    }
+    
+    if (btnRefreshStatus) {
+        btnRefreshStatus.addEventListener('click', () => {
+            pollStatus();
+        });
+    }
+}
+
 
 

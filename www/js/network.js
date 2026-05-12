@@ -105,15 +105,22 @@ let lastBaseCommandTime = 0;
 let lastArmCommandTime = 0;
 const COMMAND_RATE_LIMIT = 100; // ms between commands (10 commands/sec max)
 
-// Connection status tracking
-let connectionStatus = 'disconnected'; // Start as disconnected
+// Connection status tracking - completely disabled until server is confirmed
+let connectionStatus = 'disabled'; // Start as completely disabled
 let lastConnectionCheck = 0;
-const CONNECTION_CHECK_INTERVAL = 3000; // Check connection every 3 seconds
+const CONNECTION_CHECK_INTERVAL = 5000; // Check connection every 5 seconds
 let consecutiveFailures = 0;
 const MAX_CONSECUTIVE_FAILURES = 3;
 
+// Manual connection test - user must enable this
+let manualConnectionTest = false;
+
 // Test server connection
 async function checkConnection() {
+    if (!manualConnectionTest) {
+        return 'disabled';
+    }
+    
     const now = Date.now();
     if (now - lastConnectionCheck < CONNECTION_CHECK_INTERVAL) {
         return connectionStatus;
@@ -147,12 +154,24 @@ async function checkConnection() {
     return connectionStatus;
 }
 
+// Manual function to enable connection testing
+export function enableConnectionTest() {
+    console.log('WEB: Connection testing enabled - checking for server...');
+    manualConnectionTest = true;
+    connectionStatus = 'unknown';
+}
+
 export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
     const now = Date.now();
     if (now - lastBaseCommandTime < COMMAND_RATE_LIMIT && !emergency) {
         return; // Skip this command due to rate limiting
     }
     lastBaseCommandTime = now;
+
+    // Skip all commands if connection is disabled
+    if (connectionStatus === 'disabled') {
+        return;
+    }
 
     // Skip non-emergency commands if we've had too many failures
     if (!emergency && consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
@@ -162,7 +181,7 @@ export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
     // Only check connection if we're not already sure it's disconnected
     if (!emergency && connectionStatus !== 'disconnected') {
         const status = await checkConnection();
-        if (status === 'disconnected') {
+        if (status === 'disconnected' || status === 'disabled') {
             return; // Skip command if server is not available
         }
     }
@@ -206,6 +225,11 @@ export async function sendArmCommand(extend, gripper, turretAngle) {
     }
     lastArmCommandTime = now;
 
+    // Skip all commands if connection is disabled
+    if (connectionStatus === 'disabled') {
+        return;
+    }
+
     // Skip commands if we've had too many failures
     if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         return;
@@ -214,7 +238,7 @@ export async function sendArmCommand(extend, gripper, turretAngle) {
     // Only check connection if we're not already sure it's disconnected
     if (connectionStatus !== 'disconnected') {
         const status = await checkConnection();
-        if (status === 'disconnected') {
+        if (status === 'disconnected' || status === 'disabled') {
             return; // Skip command if server is not available
         }
     }

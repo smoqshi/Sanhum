@@ -1,7 +1,7 @@
 import { initNetwork, pollStatus, pollJointState } from './network.js';
 import { initChassis, drawChassis, updateBase } from './chassis.js';
 import { initManipulator, drawManipulator } from './manipulator.js';
-import { initUI, updateControls, updateDashboardFromState } from './uiControls.js';
+import { initUI, updateControls, updateDashboardFromState, initConnectionControls } from './uiControls.js';
 
 let canvas, ctx;
 let lastTime = 0;
@@ -18,6 +18,7 @@ function init() {
     initManipulator();
     initNetwork();
     initUI();
+    initConnectionControls();
 
     requestAnimationFrame(loop);
 
