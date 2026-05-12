@@ -245,26 +245,37 @@ function pollGamepad(dt) {
     const lt = gp.buttons[6] ? gp.buttons[6].value : 0;
     const rt = gp.buttons[7] ? gp.buttons[7].value : 0;
 
-    const dead = 0.3;
-    const ax = (Math.abs(lx) > dead) ? lx : 0;
-    const ay = (Math.abs(ly) > dead) ? ly : 0;
-    const axR = (Math.abs(rx) > dead) ? rx : 0;
-    const ayR = (Math.abs(ry) > dead) ? ry : 0;
+    // Apply deadzone and scale properly
+    const dead = 0.15; // Reduced deadzone for better sensitivity
+    const maxLinearSpeed = 1.4; // Max 1.4 m/s (based on 333 rpm motor, 40mm wheel)
+    const maxAngularSpeed = 30.0; // Max 30 deg/s
+    
+    // Helper function to apply deadzone and scale
+    function applyDeadzoneAndScale(value, deadzone, maxOutput) {
+        if (Math.abs(value) < deadzone) {
+            return 0;
+        }
+        // Scale from [deadzone, 1] to [0, maxOutput]
+        const sign = value > 0 ? 1 : -1;
+        const normalizedValue = (Math.abs(value) - deadzone) / (1.0 - deadzone);
+        return sign * normalizedValue * maxOutput;
+    }
+    
+    const ax = applyDeadzoneAndScale(lx, dead, maxAngularSpeed);
+    const ay = applyDeadzoneAndScale(ly, dead, maxLinearSpeed);
+    const axR = applyDeadzoneAndScale(rx, dead, 25.0); // turret speed
+    const ayR = applyDeadzoneAndScale(ry, dead, 0.25); // arm speed
 
     // база: LS
-    tank.vLinearCmd = -ay;
-    tank.vAngularCmdDeg = ax * 40.0;
+    tank.vLinearCmd = -ay; // Invert Y axis (forward is negative on most gamepads)
+    tank.vAngularCmdDeg = ax;
 
-    // манипулятор
-    const turretSpeedDeg = 25.0;
-    const armSpeed = 0.25;
-    const gripSpeed = 0.4;
-
-    tank.turretAngle += axR * turretSpeedDeg * dt;
+    // манипулятор - use already scaled values
+    tank.turretAngle += axR * dt; // axR already includes speed scaling
     tank.armExtension = clamp01(
-        tank.armExtension - ayR * armSpeed * dt
+        tank.armExtension - ayR * dt // ayR already includes speed scaling
     );
-    const gripDelta = (rt - lt) * gripSpeed * dt;
+    const gripDelta = (rt - lt) * 0.4 * dt; // Keep trigger scaling
     tank.gripper = clamp01(tank.gripper + gripDelta);
 
     // всегда отправляем команды роботу

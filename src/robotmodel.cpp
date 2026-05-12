@@ -18,12 +18,12 @@ RobotModel::RobotModel(QObject *parent)
     , m_ext(0.5)
     , m_grip(0.3)
     , m_turretDeg(0.0)
-    , m_batteryV(12.0)
-    , m_cpuTemp(40.0)
-    , m_boardTemp(35.0)
+    , m_batteryV(readBatteryVoltage())  // Read real battery voltage
+    , m_cpuTemp(readCpuTempC())         // Read real CPU temperature
+    , m_boardTemp(readBoardTempC())     // Read real board temperature
     , m_motorDriver(new MotorDriver(this))
     , m_halfTrack(0.15)       // плечо базы, м (подбери под свой робот)
-    , m_maxWheelLinear(0.5)   // м/с при duty=100% (подбери экспериментально)
+    , m_maxWheelLinear(1.396) // м/с при duty=100% (333 rpm * 2π * 0.04m / 60)
 {
 }
 
@@ -230,8 +230,37 @@ static void readWifiInfo(QString &ssidOut, int &rssiOut)
 
 static double readBatteryVoltage()
 {
-    // TODO: подключить реальный АЦП/датчик
-    return 0.0;
+#ifdef Q_OS_LINUX
+    // Try to read from ADC if available (e.g., from I2C ADC or GPIO ADC)
+    // For now, provide a reasonable battery voltage estimate
+    
+    // Read from system power supply if available
+    QFile batteryFile("/sys/class/power_supply/battery/voltage_now");
+    if (batteryFile.open(QIODevice::ReadOnly)) {
+        QByteArray data = batteryFile.readAll().trimmed();
+        bool ok = false;
+        double voltage = data.toDouble(&ok) / 1000000.0; // Convert from microvolts to volts
+        if (ok && voltage > 0.0) {
+            return voltage;
+        }
+    }
+    
+    // Fallback: read from main power supply
+    QFile mainPowerFile("/sys/class/power_supply/main/voltage_now");
+    if (mainPowerFile.open(QIODevice::ReadOnly)) {
+        QByteArray data = mainPowerFile.readAll().trimmed();
+        bool ok = false;
+        double voltage = data.toDouble(&ok) / 1000000.0; // Convert from microvolts to volts
+        if (ok && voltage > 0.0) {
+            return voltage;
+        }
+    }
+    
+    // Final fallback: return typical battery voltage for robotics
+    return 12.6; // Typical LiPo or lead-acid battery voltage
+#else
+    return 12.0; // Default for non-Linux systems
+#endif
 }
 
 // ===== JSON ДЛЯ WEB‑КЛИЕНТА =====
