@@ -103,7 +103,11 @@ export async function pollStatus() {
 // Rate limiting to prevent overwhelming the server
 let lastBaseCommandTime = 0;
 let lastArmCommandTime = 0;
-const COMMAND_RATE_LIMIT = 100; // ms between commands (10 commands/sec max)
+const COMMAND_RATE_LIMIT = 200; // ms between commands (5 commands/sec max)
+
+// Previous command values to avoid sending duplicates
+let lastBaseCommand = { vLinear: 0, vAngular: 0 };
+let lastArmCommand = { extend: 0, gripper: 0, turretAngle: 0 };
 
 // Connection status tracking - completely disabled until server is confirmed
 let connectionStatus = 'disabled'; // Start as completely disabled
@@ -166,7 +170,23 @@ export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
     if (now - lastBaseCommandTime < COMMAND_RATE_LIMIT && !emergency) {
         return; // Skip this command due to rate limiting
     }
+
+    // Skip duplicate commands (except emergency)
+    if (!emergency && 
+        Math.abs(vLinear - lastBaseCommand.vLinear) < 0.01 && 
+        Math.abs(vAngular - lastBaseCommand.vAngular) < 0.01) {
+        return;
+    }
+
+    // Skip zero commands unless it's a change from non-zero
+    if (!emergency && 
+        Math.abs(vLinear) < 0.01 && Math.abs(vAngular) < 0.01 &&
+        Math.abs(lastBaseCommand.vLinear) < 0.01 && Math.abs(lastBaseCommand.vAngular) < 0.01) {
+        return;
+    }
+
     lastBaseCommandTime = now;
+    lastBaseCommand = { vLinear, vAngular };
 
     // Skip all commands if connection is disabled
     if (connectionStatus === 'disabled') {
@@ -223,7 +243,16 @@ export async function sendArmCommand(extend, gripper, turretAngle) {
     if (now - lastArmCommandTime < COMMAND_RATE_LIMIT) {
         return; // Skip this command due to rate limiting
     }
+
+    // Skip duplicate commands
+    if (Math.abs(extend - lastArmCommand.extend) < 0.01 && 
+        Math.abs(gripper - lastArmCommand.gripper) < 0.01 && 
+        Math.abs(turretAngle - lastArmCommand.turretAngle) < 0.01) {
+        return;
+    }
+
     lastArmCommandTime = now;
+    lastArmCommand = { extend, gripper, turretAngle };
 
     // Skip all commands if connection is disabled
     if (connectionStatus === 'disabled') {
