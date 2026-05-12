@@ -1,10 +1,11 @@
-import { initNetwork, pollStatus, pollJointState } from './network.js';
+import { initNetwork, pollStatus, pollJointState, getConnectionStatus } from './network.js';
 import { initChassis, drawChassis, updateBase } from './chassis.js';
 import { initManipulator, drawManipulator } from './manipulator.js';
 import { initUI, updateControls, updateDashboardFromState, initConnectionControls } from './uiControls.js';
 
 let canvas, ctx;
 let lastTime = 0;
+let statusInterval, jointInterval;
 
 function init() {
     canvas = document.getElementById('tankCanvas');
@@ -23,8 +24,17 @@ function init() {
     requestAnimationFrame(loop);
 
     // периодический опрос статуса и суставов
-    setInterval(pollStatus, 500);
-    setInterval(pollJointState, 200);
+    statusInterval = setInterval(() => {
+        if (getConnectionStatus() !== 'disabled') {
+            pollStatus();
+        }
+    }, 500);
+    
+    jointInterval = setInterval(() => {
+        if (getConnectionStatus() !== 'disabled') {
+            pollJointState();
+        }
+    }, 200);
 }
 
 function loop(timestamp) {
