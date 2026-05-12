@@ -105,12 +105,57 @@ let lastBaseCommandTime = 0;
 let lastArmCommandTime = 0;
 const COMMAND_RATE_LIMIT = 50; // ms between commands
 
+// Connection status tracking
+let connectionStatus = 'unknown'; // 'unknown', 'connected', 'disconnected'
+let lastConnectionCheck = 0;
+const CONNECTION_CHECK_INTERVAL = 2000; // Check connection every 2 seconds
+
+// Test server connection
+async function checkConnection() {
+    const now = Date.now();
+    if (now - lastConnectionCheck < CONNECTION_CHECK_INTERVAL && connectionStatus !== 'unknown') {
+        return connectionStatus;
+    }
+    lastConnectionCheck = now;
+
+    try {
+        const response = await fetch('/api/status', {
+            method: 'GET',
+            signal: AbortSignal.timeout(1000)
+        });
+        
+        if (response.ok) {
+            if (connectionStatus !== 'connected') {
+                console.log('WEB: Server connection established');
+            }
+            connectionStatus = 'connected';
+        } else {
+            connectionStatus = 'disconnected';
+        }
+    } catch (e) {
+        if (connectionStatus !== 'disconnected') {
+            console.log('WEB: Server connection lost -', e.message);
+        }
+        connectionStatus = 'disconnected';
+    }
+    
+    return connectionStatus;
+}
+
 export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
     const now = Date.now();
     if (now - lastBaseCommandTime < COMMAND_RATE_LIMIT && !emergency) {
         return; // Skip this command due to rate limiting
     }
     lastBaseCommandTime = now;
+
+    // Check connection before sending (except for emergency commands)
+    if (!emergency) {
+        const status = await checkConnection();
+        if (status === 'disconnected') {
+            return; // Skip command if server is not available
+        }
+    }
 
     try {
         const payload = emergency ? { emergency: true } : { vLinear, vAngular };
@@ -125,8 +170,10 @@ export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
         
         if (!response.ok) {
             console.error('WEB: Base command failed - status:', response.status);
+            connectionStatus = 'disconnected'; // Mark as disconnected on failure
         } else {
             console.log('WEB: Base command sent successfully');
+            connectionStatus = 'connected'; // Confirm connection on success
         }
     } catch (e) {
         if (e.name === 'AbortError') {
@@ -134,6 +181,7 @@ export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
         } else {
             console.error('sendBaseCommand error', e);
         }
+        connectionStatus = 'disconnected'; // Mark as disconnected on error
     }
 }
 
@@ -143,6 +191,12 @@ export async function sendArmCommand(extend, gripper, turretAngle) {
         return; // Skip this command due to rate limiting
     }
     lastArmCommandTime = now;
+
+    // Check connection before sending
+    const status = await checkConnection();
+    if (status === 'disconnected') {
+        return; // Skip command if server is not available
+    }
 
     try {
         const response = await fetch('/api/arm', {
@@ -154,6 +208,9 @@ export async function sendArmCommand(extend, gripper, turretAngle) {
         
         if (!response.ok) {
             console.error('WEB: Arm command failed - status:', response.status);
+            connectionStatus = 'disconnected'; // Mark as disconnected on failure
+        } else {
+            connectionStatus = 'connected'; // Confirm connection on success
         }
     } catch (e) {
         if (e.name === 'AbortError') {
@@ -161,6 +218,7 @@ export async function sendArmCommand(extend, gripper, turretAngle) {
         } else {
             console.error('sendArmCommand error', e);
         }
+        connectionStatus = 'disconnected'; // Mark as disconnected on error
     }
 }
 
