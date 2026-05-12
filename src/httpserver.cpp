@@ -259,10 +259,12 @@ void HttpServer::handleRequest(QTcpSocket *socket, const QByteArray &request)
 
         const bool emergency = obj.value(QStringLiteral("emergency")).toBool(false);
         if (emergency) {
+            qDebug() << "HTTP: Emergency stop received";
             m_model->emergencyStop();
         } else {
             const double vLin = obj.value(QStringLiteral("vLinear")).toDouble();
             const double vAng = obj.value(QStringLiteral("vAngular")).toDouble();
+            qDebug() << "HTTP: Base command received - vLinear:" << vLin << "vAngular:" << vAng;
             m_model->setBaseCommand(vLin, vAng);
         }
 
