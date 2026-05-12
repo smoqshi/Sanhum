@@ -103,17 +103,19 @@ export async function pollStatus() {
 // Rate limiting to prevent overwhelming the server
 let lastBaseCommandTime = 0;
 let lastArmCommandTime = 0;
-const COMMAND_RATE_LIMIT = 50; // ms between commands
+const COMMAND_RATE_LIMIT = 100; // ms between commands (10 commands/sec max)
 
 // Connection status tracking
-let connectionStatus = 'unknown'; // 'unknown', 'connected', 'disconnected'
+let connectionStatus = 'disconnected'; // Start as disconnected
 let lastConnectionCheck = 0;
-const CONNECTION_CHECK_INTERVAL = 2000; // Check connection every 2 seconds
+const CONNECTION_CHECK_INTERVAL = 3000; // Check connection every 3 seconds
+let consecutiveFailures = 0;
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 // Test server connection
 async function checkConnection() {
     const now = Date.now();
-    if (now - lastConnectionCheck < CONNECTION_CHECK_INTERVAL && connectionStatus !== 'unknown') {
+    if (now - lastConnectionCheck < CONNECTION_CHECK_INTERVAL) {
         return connectionStatus;
     }
     lastConnectionCheck = now;
@@ -121,19 +123,22 @@ async function checkConnection() {
     try {
         const response = await fetch('/api/status', {
             method: 'GET',
-            signal: AbortSignal.timeout(1000)
+            signal: AbortSignal.timeout(500) // Shorter timeout
         });
         
         if (response.ok) {
             if (connectionStatus !== 'connected') {
                 console.log('WEB: Server connection established');
+                consecutiveFailures = 0;
             }
             connectionStatus = 'connected';
         } else {
+            consecutiveFailures++;
             connectionStatus = 'disconnected';
         }
     } catch (e) {
-        if (connectionStatus !== 'disconnected') {
+        consecutiveFailures++;
+        if (consecutiveFailures === 1) {
             console.log('WEB: Server connection lost -', e.message);
         }
         connectionStatus = 'disconnected';
@@ -149,8 +154,13 @@ export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
     }
     lastBaseCommandTime = now;
 
-    // Check connection before sending (except for emergency commands)
-    if (!emergency) {
+    // Skip non-emergency commands if we've had too many failures
+    if (!emergency && consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        return;
+    }
+
+    // Only check connection if we're not already sure it's disconnected
+    if (!emergency && connectionStatus !== 'disconnected') {
         const status = await checkConnection();
         if (status === 'disconnected') {
             return; // Skip command if server is not available
@@ -159,29 +169,33 @@ export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
 
     try {
         const payload = emergency ? { emergency: true } : { vLinear, vAngular };
-        console.log('WEB: Sending base command - vLinear:', vLinear, 'vAngular:', vAngular);
         
         const response = await fetch('/api/base', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(1000) // 1 second timeout
+            signal: AbortSignal.timeout(800) // Shorter timeout
         });
         
         if (!response.ok) {
-            console.error('WEB: Base command failed - status:', response.status);
-            connectionStatus = 'disconnected'; // Mark as disconnected on failure
-        } else {
-            console.log('WEB: Base command sent successfully');
-            connectionStatus = 'connected'; // Confirm connection on success
+            consecutiveFailures++;
+            connectionStatus = 'disconnected';
+            return;
         }
+        
+        // Success - reset failure counter and confirm connection
+        consecutiveFailures = 0;
+        connectionStatus = 'connected';
+        
     } catch (e) {
-        if (e.name === 'AbortError') {
-            console.error('WEB: Base command timeout');
-        } else {
-            console.error('sendBaseCommand error', e);
+        consecutiveFailures++;
+        connectionStatus = 'disconnected';
+        
+        // Don't log every single error to reduce console spam
+        if (consecutiveFailures === 1 || consecutiveFailures % 10 === 0) {
+            console.log('WEB: Connection issues detected, pausing commands...');
         }
-        connectionStatus = 'disconnected'; // Mark as disconnected on error
+        return;
     }
 }
 
@@ -192,10 +206,17 @@ export async function sendArmCommand(extend, gripper, turretAngle) {
     }
     lastArmCommandTime = now;
 
-    // Check connection before sending
-    const status = await checkConnection();
-    if (status === 'disconnected') {
-        return; // Skip command if server is not available
+    // Skip commands if we've had too many failures
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        return;
+    }
+
+    // Only check connection if we're not already sure it's disconnected
+    if (connectionStatus !== 'disconnected') {
+        const status = await checkConnection();
+        if (status === 'disconnected') {
+            return; // Skip command if server is not available
+        }
     }
 
     try {
@@ -203,22 +224,23 @@ export async function sendArmCommand(extend, gripper, turretAngle) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ extend, gripper, turretAngle }),
-            signal: AbortSignal.timeout(1000) // 1 second timeout
+            signal: AbortSignal.timeout(800) // Shorter timeout
         });
         
         if (!response.ok) {
-            console.error('WEB: Arm command failed - status:', response.status);
-            connectionStatus = 'disconnected'; // Mark as disconnected on failure
-        } else {
-            connectionStatus = 'connected'; // Confirm connection on success
+            consecutiveFailures++;
+            connectionStatus = 'disconnected';
+            return;
         }
+        
+        // Success - reset failure counter and confirm connection
+        consecutiveFailures = 0;
+        connectionStatus = 'connected';
+        
     } catch (e) {
-        if (e.name === 'AbortError') {
-            console.error('WEB: Arm command timeout');
-        } else {
-            console.error('sendArmCommand error', e);
-        }
-        connectionStatus = 'disconnected'; // Mark as disconnected on error
+        consecutiveFailures++;
+        connectionStatus = 'disconnected';
+        return;
     }
 }
 
