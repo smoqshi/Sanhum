@@ -20,11 +20,15 @@ if platform.system() == "Windows":
     import msvcrt
     import tkinter as tk
     from tkinter import ttk, messagebox
-    import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-    from matplotlib.animation import FuncAnimation
-    import numpy as np
-    GUI_AVAILABLE = True
+    try:
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        from matplotlib.animation import FuncAnimation
+        import numpy as np
+        GUI_AVAILABLE = True
+    except ImportError:
+        print("⚠️  GUI libraries not available - running in terminal mode")
+        GUI_AVAILABLE = False
 else:
     import termios
     import tty
@@ -281,6 +285,8 @@ class SanhumRobot:
                 self.gamepad.init()
                 self.gamepad_connected = True
                 print(f"✅ Gamepad connected: {self.gamepad.get_name()}")
+                print(f"📊 Axes: {self.gamepad.get_numaxes()}, Buttons: {self.gamepad.get_numbuttons()}")
+                self.calibrate_gamepad()
                 return True
             else:
                 print("❌ No gamepad found")
@@ -290,6 +296,48 @@ class SanhumRobot:
             print(f"❌ Gamepad error: {e}")
             return False
 
+    def calibrate_gamepad(self):
+        """Calibrate gamepad axes"""
+        if not self.gamepad_connected:
+            return
+        
+        print("🎮 Calibrating gamepad...")
+        print("Move all sticks to center position, then press any button...")
+        
+        # Wait for button press to center
+        waiting = True
+        while waiting and self.running:
+            pygame.event.pump()
+            for i in range(self.gamepad.get_numbuttons()):
+                if self.gamepad.get_button(i):
+                    waiting = False
+                    break
+            time.sleep(0.1)
+        
+        # Record center values
+        pygame.event.pump()
+        self.center_values = []
+        for i in range(self.gamepad.get_numaxes()):
+            self.center_values.append(self.gamepad.get_axis(i))
+        
+        print("✅ Gamepad calibrated!")
+        print(f"🎯 Center values: {[f'{v:.2f}' for v in self.center_values]}")
+
+    def get_calibrated_axis(self, axis):
+        """Get calibrated axis value"""
+        if not self.gamepad_connected or axis >= self.gamepad.get_numaxes():
+            return 0.0
+        
+        raw_value = self.gamepad.get_axis(axis)
+        if hasattr(self, 'center_values') and axis < len(self.center_values):
+            # Subtract center value and normalize
+            centered = raw_value - self.center_values[axis]
+            # Deadzone
+            if abs(centered) < 0.1:
+                return 0.0
+            return centered
+        return raw_value
+
     def process_gamepad(self):
         """Process gamepad input"""
         if not self.gamepad_connected or not self.gamepad:
@@ -298,21 +346,26 @@ class SanhumRobot:
         try:
             pygame.event.pump()
             
-            # Read analog sticks
-            left_stick_x = self.gamepad.get_axis(0)
-            left_stick_y = self.gamepad.get_axis(1)
-            right_stick_x = self.gamepad.get_axis(2)
-            right_stick_y = self.gamepad.get_axis(3)
+            # Read calibrated analog sticks
+            left_stick_x = self.get_calibrated_axis(0)
+            left_stick_y = self.get_calibrated_axis(1)
+            right_stick_x = self.get_calibrated_axis(2)
+            right_stick_y = self.get_calibrated_axis(3)
             
-            # Update controls
+            # Update controls with calibrated values
             self.v_linear = -left_stick_y
             self.v_angular = left_stick_x
             self.arm_extend = (right_stick_y + 1) / 2
             self.turret_angle = right_stick_x * 180
             
-            # Check for emergency stop
+            # Check for emergency stop (A button)
             if self.gamepad.get_button(0):
                 self.emergency_stop_action()
+                
+            # Check for recalibration (Select button, usually button 6)
+            if self.gamepad.get_button(6):
+                print("🎮 Recalibrating gamepad...")
+                self.calibrate_gamepad()
                 
         except Exception as e:
             print(f"❌ Gamepad error: {e}")
@@ -631,15 +684,78 @@ class SanhumRobot:
         
         print("👋 Sanhum Robot shutdown complete")
 
+async def test_gamepad():
+    """Test gamepad functionality"""
+    print("🎮 Gamepad Test Tool")
+    print("="*50)
+    
+    if not GAMEPAD_AVAILABLE:
+        print("❌ Pygame not available - install with: pip install pygame")
+        return
+    
+    try:
+        pygame.init()
+        pygame.joystick.init()
+        
+        if pygame.joystick.get_count() == 0:
+            print("❌ No gamepad found")
+            print("Connect a gamepad and try again")
+            return
+        
+        gamepad = pygame.joystick.Joystick(0)
+        gamepad.init()
+        
+        print(f"✅ Gamepad connected: {gamepad.get_name()}")
+        print(f"📊 Axes: {gamepad.get_numaxes()}")
+        print(f"🔘 Buttons: {gamepad.get_numbuttons()}")
+        print(f"🎯 Hats: {gamepad.get_numhats()}")
+        print()
+        print("🎮 Move sticks and press buttons to test...")
+        print("Press Ctrl+C to exit")
+        print("="*50)
+        
+        while True:
+            pygame.event.pump()
+            
+            # Display axes
+            print("\r📊 Axes: ", end="")
+            for i in range(gamepad.get_numaxes()):
+                value = gamepad.get_axis(i)
+                print(f"A{i}:{value:+.2f} ", end="")
+            
+            # Display buttons
+            print("🔘 Buttons: ", end="")
+            for i in range(min(gamepad.get_numbuttons(), 10)):  # Limit to first 10 buttons
+                if gamepad.get_button(i):
+                    print(f"B{i} ", end="")
+            
+            # Display hats
+            for i in range(gamepad.get_numhats()):
+                hat = gamepad.get_hat(i)
+                if hat != (0, 0):
+                    print(f"H{i}:{hat} ", end="")
+            
+            print(" " * 20, end="\r")  # Clear line
+            await asyncio.sleep(0.05)
+            
+    except KeyboardInterrupt:
+        print("\n👋 Gamepad test completed")
+    except Exception as e:
+        print(f"❌ Gamepad test error: {e}")
+
 def main():
     """Main function"""
     parser = argparse.ArgumentParser(description="Sanhum Robot Control")
-    parser.add_argument("--mode", choices=["server", "client"], default="client",
-                       help="Run mode: server (RPi) or client (Windows)")
+    parser.add_argument("--mode", choices=["server", "client", "gamepad-test"], default="client",
+                       help="Run mode: server (RPi), client (Windows), or gamepad-test")
     parser.add_argument("--ip", default="192.168.0.140", help="RPi IP address")
     parser.add_argument("--port", type=int, default=8081, help="WebSocket port")
     
     args = parser.parse_args()
+    
+    if args.mode == "gamepad-test":
+        asyncio.run(test_gamepad())
+        return
     
     robot = SanhumRobot(mode=args.mode)
     robot.RPI_IP = args.ip
