@@ -103,11 +103,17 @@ export async function pollStatus() {
 export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
     try {
         const payload = emergency ? { emergency: true } : { vLinear, vAngular };
-        await fetch('/api/base', {
+        console.log('WEB: Sending base command - vLinear:', vLinear, 'vAngular:', vAngular);
+        const response = await fetch('/api/base', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
+        if (!response.ok) {
+            console.error('WEB: Base command failed - status:', response.status);
+        } else {
+            console.log('WEB: Base command sent successfully');
+        }
     } catch (e) {
         console.error('sendBaseCommand error', e);
     }
