@@ -35,14 +35,48 @@ else:
     import select
     GUI_AVAILABLE = False
 
-# Gamepad support
+# Gamepad support - try multiple libraries
+GAMEPAD_AVAILABLE = False
+GAMEPAD_LIBRARY = None
+
+# Try pygame first (most feature-rich)
 try:
     import pygame
     GAMEPAD_AVAILABLE = True
+    GAMEPAD_LIBRARY = "pygame"
 except ImportError:
-    GAMEPAD_AVAILABLE = False
-    print("⚠️  Pygame not found - gamepad support disabled")
-    print("💡 Install pygame for gamepad support: pip install pygame")
+    pass
+
+# Try inputs library (lighter alternative)
+if not GAMEPAD_AVAILABLE:
+    try:
+        import inputs
+        GAMEPAD_AVAILABLE = True
+        GAMEPAD_LIBRARY = "inputs"
+        print("✅ Using 'inputs' library for gamepad support")
+    except ImportError:
+        pass
+
+# Try pyjoystick (another alternative)
+if not GAMEPAD_AVAILABLE:
+    try:
+        import pyjoystick
+        GAMEPAD_AVAILABLE = True
+        GAMEPAD_LIBRARY = "pyjoystick"
+        print("✅ Using 'pyjoystick' library for gamepad support")
+    except ImportError:
+        pass
+
+if not GAMEPAD_AVAILABLE:
+    print("⚠️  No gamepad library found - gamepad support disabled")
+    print("💡 Install one of these for gamepad support:")
+    print("   pip install pygame")
+    print("   pip install inputs")
+    print("   pip install pyjoystick")
+    print()
+    print("🔧 For Python 3.14+ pygame issues, try:")
+    print("   pip install --pre pygame")
+    print("   Or use: pip install inputs")
 
 # GPIO support (RPi only)
 try:
@@ -275,32 +309,71 @@ class SanhumRobot:
     def init_gamepad(self):
         """Initialize gamepad"""
         if not GAMEPAD_AVAILABLE:
-            print("❌ Gamepad not available - pygame not installed")
-            print("💡 To enable gamepad support, install pygame:")
+            print("❌ Gamepad not available - no gamepad library installed")
+            print("💡 To enable gamepad support, install one of:")
+            print("   pip install inputs")
             print("   pip install pygame")
+            print("   pip install pyjoystick")
             return False
         
         try:
-            pygame.init()
-            pygame.joystick.init()
-            
-            if pygame.joystick.get_count() == 0:
-                print("❌ No gamepad found")
-                print("💡 Connect a gamepad and try again")
+            if GAMEPAD_LIBRARY == "pygame":
+                return self._init_pygame_gamepad()
+            elif GAMEPAD_LIBRARY == "inputs":
+                return self._init_inputs_gamepad()
+            elif GAMEPAD_LIBRARY == "pyjoystick":
+                return self._init_pyjoystick_gamepad()
+            else:
+                print("❌ Unknown gamepad library")
                 return False
-            
-            self.gamepad = pygame.joystick.Joystick(0)
-            self.gamepad.init()
-            self.gamepad_connected = True
-            print(f"✅ Gamepad connected: {self.gamepad.get_name()}")
-            print(f"📊 Axes: {self.gamepad.get_numaxes()}, Buttons: {self.gamepad.get_numbuttons()}")
-            self.calibrate_gamepad()
-            return True
                 
         except Exception as e:
             print(f"❌ Gamepad initialization error: {e}")
             self.gamepad_connected = False
             return False
+
+    def _init_pygame_gamepad(self):
+        """Initialize pygame gamepad"""
+        pygame.init()
+        pygame.joystick.init()
+        
+        if pygame.joystick.get_count() == 0:
+            print("❌ No gamepad found")
+            return False
+        
+        self.gamepad = pygame.joystick.Joystick(0)
+        self.gamepad.init()
+        self.gamepad_connected = True
+        print(f"✅ Gamepad connected: {self.gamepad.get_name()}")
+        print(f"📊 Axes: {self.gamepad.get_numaxes()}, Buttons: {self.gamepad.get_numbuttons()}")
+        self.calibrate_gamepad()
+        return True
+
+    def _init_inputs_gamepad(self):
+        """Initialize inputs library gamepad"""
+        devices = inputs.devices.gamepads
+        if not devices:
+            print("❌ No gamepad found")
+            return False
+        
+        self.gamepad = devices[0]  # Use first gamepad
+        self.gamepad_connected = True
+        print(f"✅ Gamepad connected: {self.gamepad.name}")
+        print(f"📊 Using 'inputs' library")
+        return True
+
+    def _init_pyjoystick_gamepad(self):
+        """Initialize pyjoystick gamepad"""
+        if not pyjoystick.joysticks:
+            print("❌ No gamepad found")
+            return False
+        
+        self.gamepad = pyjoystick.joysticks[0]
+        self.gamepad.init()
+        self.gamepad_connected = True
+        print(f"✅ Gamepad connected: {self.gamepad.name}")
+        print(f"📊 Using 'pyjoystick' library")
+        return True
 
     def calibrate_gamepad(self):
         """Calibrate gamepad axes"""
