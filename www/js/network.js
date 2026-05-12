@@ -100,34 +100,67 @@ export async function pollStatus() {
     }
 }
 
+// Rate limiting to prevent overwhelming the server
+let lastBaseCommandTime = 0;
+let lastArmCommandTime = 0;
+const COMMAND_RATE_LIMIT = 50; // ms between commands
+
 export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
+    const now = Date.now();
+    if (now - lastBaseCommandTime < COMMAND_RATE_LIMIT && !emergency) {
+        return; // Skip this command due to rate limiting
+    }
+    lastBaseCommandTime = now;
+
     try {
         const payload = emergency ? { emergency: true } : { vLinear, vAngular };
         console.log('WEB: Sending base command - vLinear:', vLinear, 'vAngular:', vAngular);
+        
         const response = await fetch('/api/base', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(1000) // 1 second timeout
         });
+        
         if (!response.ok) {
             console.error('WEB: Base command failed - status:', response.status);
         } else {
             console.log('WEB: Base command sent successfully');
         }
     } catch (e) {
-        console.error('sendBaseCommand error', e);
+        if (e.name === 'AbortError') {
+            console.error('WEB: Base command timeout');
+        } else {
+            console.error('sendBaseCommand error', e);
+        }
     }
 }
 
 export async function sendArmCommand(extend, gripper, turretAngle) {
+    const now = Date.now();
+    if (now - lastArmCommandTime < COMMAND_RATE_LIMIT) {
+        return; // Skip this command due to rate limiting
+    }
+    lastArmCommandTime = now;
+
     try {
-        await fetch('/api/arm', {
+        const response = await fetch('/api/arm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ extend, gripper, turretAngle })
+            body: JSON.stringify({ extend, gripper, turretAngle }),
+            signal: AbortSignal.timeout(1000) // 1 second timeout
         });
+        
+        if (!response.ok) {
+            console.error('WEB: Arm command failed - status:', response.status);
+        }
     } catch (e) {
-        console.error('sendArmCommand error', e);
+        if (e.name === 'AbortError') {
+            console.error('WEB: Arm command timeout');
+        } else {
+            console.error('sendArmCommand error', e);
+        }
     }
 }
 
