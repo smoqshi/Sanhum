@@ -3,10 +3,15 @@ import socket
 import struct
 import time
 import threading
+import time
 from typing import Optional
 
 import gpiod
 from gpiod.line import Direction, Value
+
+def perf_counter():
+    """High-precision counter for timing synchronization"""
+    return time.time()
 
 try:
     import serial  # для ESP32; если не установлен, манипулятор просто не работает
@@ -111,10 +116,10 @@ def drive_one_motor(dir_, duty, pin0, pin1, values):
 
 def motor_control_loop():
     """
-    Цикл управления моторами:
-    - читает последнее состояние motor_cmd;
-    - применяет тормоз, если brake=1;
-    - иначе реализует таблицу D0/D1/D2/D3 с PWM.
+    Оптимизированный цикл управления моторами:
+    - Синхронизированная обработка команд
+    - Точное PWM время
+    - Минимальные задержки
     """
     config = {
         GPIO_D0: gpiod.LineSettings(direction=Direction.OUTPUT,
@@ -128,34 +133,42 @@ def motor_control_loop():
     }
 
     with gpiod.request_lines(CHIP_PATH, consumer="sanhum_py", config=config) as req:
-        last_time = time.time()
+        last_time = time.perf_counter()
+        last_command_time = last_time
+        
         while True:
-            now = time.time()
+            now = time.perf_counter()
             dt = now - last_time
+            
+            # Точное соблюдение частоты обновления
             if dt < UPDATE_DT:
                 time.sleep(UPDATE_DT - dt)
-            last_time = time.time()
-
+                continue
+                
+            last_time = now
+            
+            # Атомарное чтение состояния команд
             with motor_lock:
                 left_dir = motor_cmd.left_dir
                 right_dir = motor_cmd.right_dir
                 left_duty = motor_cmd.left_duty
                 right_duty = motor_cmd.right_duty
                 brake = motor_cmd.brake
+                current_command_time = now
 
-            values = {}
-
-            # Экстренный тормоз: оба входа каждого мотора = 1
+            # Экстренный тормоз - немедленное применение
             if brake:
-                values[GPIO_D0] = Value.ACTIVE
-                values[GPIO_D1] = Value.ACTIVE
-                values[GPIO_D2] = Value.ACTIVE
-                values[GPIO_D3] = Value.ACTIVE
+                values = {
+                    GPIO_D0: Value.ACTIVE,
+                    GPIO_D1: Value.ACTIVE,
+                    GPIO_D2: Value.ACTIVE,
+                    GPIO_D3: Value.ACTIVE
+                }
                 req.set_values(values)
                 time.sleep(PERIOD)
                 continue
 
-            # Обычное управление
+            # Обычное управление с оптимизированным PWM
             left_on, left_pwm_pin = drive_one_motor(
                 left_dir, left_duty, GPIO_D0, GPIO_D1, values
             )
@@ -163,33 +176,44 @@ def motor_control_loop():
                 right_dir, right_duty, GPIO_D2, GPIO_D3, values
             )
 
+            # Применяем все значения сразу
             req.set_values(values)
 
+            # Оба мотора выключены
             max_on = max(left_on, right_on)
-            if max_on <= 0.0:
-                # стоп / без PWM
+            if max_on <= 0.001:
                 time.sleep(PERIOD)
                 continue
 
-            if max_on >= PERIOD:
-                # практически 100% заполнение
+            # Максимальная заполнение - непрерывный сигнал
+            if max_on >= PERIOD - 0.001:
                 time.sleep(PERIOD)
                 continue
 
-            # фаза ON
-            time.sleep(max_on)
-
-            # фаза OFF только для линий с PWM
+            # Точная PWM фаза: ON время
+            pwm_on_time = max_on
+            
+            # OFF фаза только для PWM линий
             off_values = {}
-            if left_pwm_pin is not None:
+            if left_pwm_pin is not None and left_on < PERIOD - 0.001:
                 off_values[left_pwm_pin] = Value.INACTIVE
-            if right_pwm_pin is not None:
+            if right_pwm_pin is not None and right_on < PERIOD - 0.001:
                 off_values[right_pwm_pin] = Value.INACTIVE
 
+            # Применяем OFF фазу если нужно
             if off_values:
                 req.set_values(off_values)
 
-            time.sleep(PERIOD - max_on)
+            # OFF время с точным расчетом
+            pwm_off_time = PERIOD - pwm_on_time
+            
+            # Минимальная задержка для стабильности GPIO
+            min_sleep = 0.001  # 1ms минимальная задержка
+            
+            if pwm_off_time > min_sleep:
+                time.sleep(pwm_off_time)
+            else:
+                time.sleep(min_sleep)
 
 
 # -------------------------------

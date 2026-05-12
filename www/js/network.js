@@ -33,6 +33,13 @@ export function initNetwork() {
 }
 
 export async function pollStatus() {
+    // Check if request already pending
+    if (pendingRequests.has('status')) {
+        return;
+    }
+    
+    pendingRequests.add('status');
+    
     try {
         const r = await fetch('/api/status', { signal: AbortSignal.timeout(500) });
         if (!r.ok) return;
@@ -67,10 +74,12 @@ export async function pollStatus() {
         if (wifiRssiEl) wifiRssiEl.textContent = (wifi_rssi_dbm !== undefined && wifi_rssi_dbm !== null) ? `${wifi_rssi_dbm} dBm` : '-- dBm';
     } catch (e) {
         console.error('pollStatus error', e);
+    } finally {
+        pendingRequests.delete('status');
     }
 }
 
-// Rate limiting to prevent overwhelming the server
+// Rate limiting to prevent overwhelming server
 let lastBaseCommandTime = 0;
 let lastArmCommandTime = 0;
 const COMMAND_RATE_LIMIT = 200; // ms between commands (5 commands/sec max)
@@ -78,6 +87,10 @@ const COMMAND_RATE_LIMIT = 200; // ms between commands (5 commands/sec max)
 // Previous command values to avoid sending duplicates
 let lastBaseCommand = { vLinear: 0, vAngular: 0 };
 let lastArmCommand = { extend: 0, gripper: 0, turretAngle: 0 };
+
+// Request queue management
+let pendingRequests = new Set();
+const MAX_PENDING_REQUESTS = 3;
 
 // Connection status tracking - completely disabled until server is confirmed
 let connectionStatus = 'disabled'; // Start as completely disabled
@@ -278,6 +291,13 @@ export async function pollJointState() {
         return;
     }
     
+    // Check if request already pending
+    if (pendingRequests.has('joint_state')) {
+        return;
+    }
+    
+    pendingRequests.add('joint_state');
+    
     try {
         const r = await fetch('/api/joint_state', { signal: AbortSignal.timeout(500) });
         if (!r.ok) return;
@@ -295,5 +315,7 @@ export async function pollJointState() {
         }
     } catch (e) {
         console.error('pollJointState error', e);
+    } finally {
+        pendingRequests.delete('joint_state');
     }
 }

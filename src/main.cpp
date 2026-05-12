@@ -38,6 +38,26 @@ int main(int argc, char *argv[])
 
     motorProcess->start(program, arguments);
 
+    // Start UDP server for real-time communication
+    QProcess *udpProcess = new QProcess(&app);
+    QString udpScriptPath = appDir.filePath("src/udp_server.py");
+    QStringList udpArguments;
+    udpArguments << udpScriptPath;
+    
+    QObject::connect(udpProcess, &QProcess::readyReadStandardOutput, [udpProcess]() {
+        QByteArray data = udpProcess->readAllStandardOutput();
+        if (!data.isEmpty())
+            qInfo().noquote() << "[udp_server.py]" << data.trimmed();
+    });
+    
+    QObject::connect(udpProcess, &QProcess::readyReadStandardError, [udpProcess]() {
+        QByteArray data = udpProcess->readAllStandardError();
+        if (!data.isEmpty())
+            qWarning().noquote() << "[udp_server.py stderr]" << data.trimmed();
+    });
+    
+    udpProcess->start(program, udpArguments);
+
     if (!motorProcess->waitForStarted(3000)) {
         qFatal("Failed to start motor_control.py at path %s",
                qPrintable(motorScriptPath));
