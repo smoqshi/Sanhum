@@ -10,8 +10,14 @@ import websockets
 import time
 import threading
 import sys
-import termios
-import tty
+import platform
+
+# Platform-specific imports
+if platform.system() == "Windows":
+    import msvcrt
+else:
+    import termios
+    import tty
 
 class RobotController:
     def __init__(self):
@@ -71,30 +77,42 @@ class RobotController:
 
     def get_key(self):
         """Get single key press (non-blocking)"""
-        if self.old_settings:
-            try:
-                import select
-                if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
-                    return sys.stdin.read(1)
-            except:
-                pass
+        if platform.system() == "Windows":
+            if msvcrt.kbhit():
+                return msvcrt.getch().decode('utf-8')
+        else:
+            if self.old_settings:
+                try:
+                    import select
+                    if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                        return sys.stdin.read(1)
+                except:
+                    pass
         return None
 
     def setup_terminal(self):
         """Setup terminal for non-blocking input"""
-        try:
-            self.old_settings = termios.tcgetattr(sys.stdin)
-            tty.setraw(sys.stdin.fileno())
-        except:
+        if platform.system() == "Windows":
+            # Windows doesn't need special terminal setup
             pass
+        else:
+            try:
+                self.old_settings = termios.tcgetattr(sys.stdin)
+                tty.setraw(sys.stdin.fileno())
+            except:
+                pass
 
     def restore_terminal(self):
         """Restore terminal settings"""
-        if self.old_settings:
-            try:
-                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
-            except:
-                pass
+        if platform.system() == "Windows":
+            # Windows doesn't need terminal restoration
+            pass
+        else:
+            if self.old_settings:
+                try:
+                    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.old_settings)
+                except:
+                    pass
 
     def print_controls(self):
         """Print control instructions"""
