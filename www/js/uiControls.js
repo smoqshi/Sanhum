@@ -320,16 +320,17 @@ function sendBase(emergency = false) {
     const vLin = tank.vLinearCmd;
     const vAng = tank.vAngularCmdDeg * Math.PI / 180.0;
     
-    // Debug WebSocket connection status
-    console.log('sendBase called, UDP connected:', isUdpConnected());
+    // Force WebSocket connection if not connected
+    if (!isUdpConnected()) {
+        console.warn('WebSocket not connected, attempting to reconnect...');
+        initUdpNetwork();
+        return; // Skip this command, will retry on next frame
+    }
     
-    // Only use UDP - no HTTP fallback to prevent ERR_INSUFFICIENT_RESOURCES
+    // Only use WebSocket - completely prevent HTTP requests
     if (isUdpConnected()) {
         sendUdpCommand(vLin, vAng, emergency);
-    } else {
-        console.warn('WebSocket not connected, command not sent');
     }
-    // If UDP is not connected, don't send anything to prevent errors
 }
 
 
@@ -338,11 +339,17 @@ function sendArm() {
     const grip = tank.gripper;
     const turret = tank.turretAngle;
     
-    // Only use UDP - no HTTP fallback to prevent ERR_INSUFFICIENT_RESOURCES
+    // Force WebSocket connection if not connected
+    if (!isUdpConnected()) {
+        console.warn('WebSocket not connected, attempting to reconnect...');
+        initUdpNetwork();
+        return; // Skip this command, will retry on next frame
+    }
+    
+    // Only use WebSocket - completely prevent HTTP requests
     if (isUdpConnected()) {
         sendUdpArmCommand(extend, grip, turret);
     }
-    // If UDP is not connected, don't send anything to prevent errors
 }
 
 
