@@ -38,25 +38,25 @@ int main(int argc, char *argv[])
 
     motorProcess->start(program, arguments);
 
-    // Start UDP server for real-time communication
-    QProcess *udpProcess = new QProcess(&app);
-    QString udpScriptPath = appDir.filePath("src/udp_server.py");
-    QStringList udpArguments;
-    udpArguments << udpScriptPath;
+    // Start WebSocket server for real-time communication
+    QProcess *wsProcess = new QProcess(&app);
+    QString wsScriptPath = appDir.filePath("src/websocket_server.py");
+    QStringList wsArguments;
+    wsArguments << wsScriptPath;
     
-    QObject::connect(udpProcess, &QProcess::readyReadStandardOutput, [udpProcess]() {
-        QByteArray data = udpProcess->readAllStandardOutput();
+    QObject::connect(wsProcess, &QProcess::readyReadStandardOutput, [wsProcess]() {
+        QByteArray data = wsProcess->readAllStandardOutput();
         if (!data.isEmpty())
-            qInfo().noquote() << "[udp_server.py]" << data.trimmed();
+            qInfo().noquote() << "[websocket_server.py]" << data.trimmed();
     });
     
-    QObject::connect(udpProcess, &QProcess::readyReadStandardError, [udpProcess]() {
-        QByteArray data = udpProcess->readAllStandardError();
+    QObject::connect(wsProcess, &QProcess::readyReadStandardError, [wsProcess]() {
+        QByteArray data = wsProcess->readAllStandardError();
         if (!data.isEmpty())
-            qWarning().noquote() << "[udp_server.py stderr]" << data.trimmed();
+            qWarning().noquote() << "[websocket_server.py stderr]" << data.trimmed();
     });
     
-    udpProcess->start(program, udpArguments);
+    wsProcess->start(program, wsArguments);
 
     if (!motorProcess->waitForStarted(3000)) {
         qFatal("Failed to start motor_control.py at path %s",

@@ -320,15 +320,11 @@ function sendBase(emergency = false) {
     const vLin = tank.vLinearCmd;
     const vAng = tank.vAngularCmdDeg * Math.PI / 180.0;
     
-    // Try UDP first for speed, fallback to HTTP
+    // Only use UDP - no HTTP fallback to prevent ERR_INSUFFICIENT_RESOURCES
     if (isUdpConnected()) {
-        if (sendUdpCommand(vLin, vAng, emergency)) {
-            return; // UDP sent successfully
-        }
+        sendUdpCommand(vLin, vAng, emergency);
     }
-
-    // Fallback to HTTP if UDP fails
-    sendBaseCommand(vLin, vAng, emergency);
+    // If UDP is not connected, don't send anything to prevent errors
 }
 
 
@@ -337,15 +333,11 @@ function sendArm() {
     const grip = tank.gripper;
     const turret = tank.turretAngle;
     
-    // Try UDP first for speed, fallback to HTTP
+    // Only use UDP - no HTTP fallback to prevent ERR_INSUFFICIENT_RESOURCES
     if (isUdpConnected()) {
-        if (sendUdpArmCommand(extend, grip, turret)) {
-            return; // UDP sent successfully
-        }
+        sendUdpArmCommand(extend, grip, turret);
     }
-    
-    // Fallback to HTTP if UDP fails
-    sendArmCommand(extend, grip, turret);
+    // If UDP is not connected, don't send anything to prevent errors
 }
 
 

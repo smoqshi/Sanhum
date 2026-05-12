@@ -4,6 +4,7 @@ import struct
 import time
 import threading
 import time
+import logging
 from typing import Optional
 
 import gpiod
@@ -12,6 +13,18 @@ from gpiod.line import Direction, Value
 def perf_counter():
     """High-precision counter for timing synchronization"""
     return time.time()
+
+# Configure logging for WebSocket system
+# Logs appear in terminal AND saved to file
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Terminal output (real-time)
+        logging.FileHandler('/tmp/sanhum_motor.log')  # File backup
+    ]
+)
+logger = logging.getLogger('motor_control')
 
 try:
     import serial  # для ESP32; если не установлен, манипулятор просто не работает
@@ -121,6 +134,7 @@ def motor_control_loop():
     - Точное PWM время
     - Минимальные задержки
     """
+    logger.info("Starting motor control loop")
     config = {
         GPIO_D0: gpiod.LineSettings(direction=Direction.OUTPUT,
                                     output_value=Value.INACTIVE),
@@ -135,6 +149,7 @@ def motor_control_loop():
     with gpiod.request_lines(CHIP_PATH, consumer="sanhum_py", config=config) as req:
         last_time = time.perf_counter()
         last_command_time = last_time
+        loop_count = 0
         
         while True:
             now = time.perf_counter()
@@ -146,6 +161,7 @@ def motor_control_loop():
                 continue
                 
             last_time = now
+            loop_count += 1
             
             # Атомарное чтение состояния команд
             with motor_lock:
@@ -158,6 +174,7 @@ def motor_control_loop():
 
             # Экстренный тормоз - немедленное применение
             if brake:
+                logger.warning("Emergency brake activated")
                 values = {
                     GPIO_D0: Value.ACTIVE,
                     GPIO_D1: Value.ACTIVE,
@@ -182,11 +199,15 @@ def motor_control_loop():
             # Оба мотора выключены
             max_on = max(left_on, right_on)
             if max_on <= 0.001:
+                if loop_count % 100 == 0:  # Log every 100 cycles when idle
+                    logger.debug(f"Motors idle - loop {loop_count}")
                 time.sleep(PERIOD)
                 continue
 
             # Максимальная заполнение - непрерывный сигнал
             if max_on >= PERIOD - 0.001:
+                if loop_count % 50 == 0:  # Log every 50 cycles at full power
+                    logger.info(f"Motors at full power - loop {loop_count}")
                 time.sleep(PERIOD)
                 continue
 
@@ -214,6 +235,10 @@ def motor_control_loop():
                 time.sleep(pwm_off_time)
             else:
                 time.sleep(min_sleep)
+            
+            # Log motor status periodically
+            if loop_count % 200 == 0:
+                logger.info(f"Motor status - L:{left_dir}/{left_duty}% R:{right_dir}/{right_duty}% PWM:{max_on/PERIOD*100:.1f}%")
 
 
 # -------------------------------

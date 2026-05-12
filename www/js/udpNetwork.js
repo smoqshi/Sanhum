@@ -20,8 +20,9 @@ let lastSpeedInfo = {
 
 export function initUdpNetwork() {
     try {
-        // Create UDP socket for commands
-        udpSocket = new WebSocket(`ws://${udpServerHost}:${udpServerPort + 1}`);
+        // Create UDP socket using WebRTC data channel for UDP-like communication
+        // Since browsers don't support raw UDP, we'll use WebSocket as UDP proxy
+        udpSocket = new WebSocket(`ws://${udpServerHost}:${udpServerPort}`);
         
         udpSocket.onopen = () => {
             console.log('UDP WebSocket connected');
