@@ -320,9 +320,14 @@ function sendBase(emergency = false) {
     const vLin = tank.vLinearCmd;
     const vAng = tank.vAngularCmdDeg * Math.PI / 180.0;
     
+    // Debug WebSocket connection status
+    console.log('sendBase called, UDP connected:', isUdpConnected());
+    
     // Only use UDP - no HTTP fallback to prevent ERR_INSUFFICIENT_RESOURCES
     if (isUdpConnected()) {
         sendUdpCommand(vLin, vAng, emergency);
+    } else {
+        console.warn('WebSocket not connected, command not sent');
     }
     // If UDP is not connected, don't send anything to prevent errors
 }

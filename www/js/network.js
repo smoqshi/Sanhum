@@ -33,50 +33,9 @@ export function initNetwork() {
 }
 
 export async function pollStatus() {
-    // Check if request already pending
-    if (pendingRequests.has('status')) {
-        return;
-    }
-    
-    pendingRequests.add('status');
-    
-    try {
-        const r = await fetch('/api/status', { signal: AbortSignal.timeout(500) });
-        if (!r.ok) return;
-        const d = await r.json();
-
-        const { cpu_temp_c, board_temp_c, cpu_load_percent,
-                battery_v, current_total_a, current_5v_a, current_12v_a,
-                current_motors_a, current_gpio_ma, wifi_ssid, wifi_rssi_dbm } = d;
-
-        const cpuTemp = document.getElementById('statusCpuTemp');
-        const boardTemp = document.getElementById('statusBoardTemp');
-        const cpuLoad = document.getElementById('statusCpuLoad');
-        const battery = document.getElementById('statusBattery');
-        const currentTotal = document.getElementById('statusCurrentTotal');
-        const current5V = document.getElementById('statusCurrent5V');
-        const current12V = document.getElementById('statusCurrent12V');
-        const currentMotors = document.getElementById('statusCurrentMotors');
-        const currentGpio = document.getElementById('statusCurrentGpio');
-        const wifiSsidEl = document.getElementById('statusWifiSsid');
-        const wifiRssiEl = document.getElementById('statusWifiRssi');
-
-        if (cpuTemp) cpuTemp.textContent = (cpu_temp_c !== undefined && cpu_temp_c !== null) ? `${cpu_temp_c.toFixed(1)} °C` : '-- °C';
-        if (boardTemp) boardTemp.textContent = (board_temp_c !== undefined && board_temp_c !== null) ? `${board_temp_c.toFixed(1)} °C` : '-- °C';
-        if (cpuLoad) cpuLoad.textContent = (cpu_load_percent !== undefined && cpu_load_percent !== null) ? `${cpu_load_percent.toFixed(1)} %` : '-- %';
-        if (battery) battery.textContent = (battery_v !== undefined && battery_v !== null) ? `${battery_v.toFixed(1)} V` : '-- V';
-        if (currentTotal) currentTotal.textContent = (current_total_a !== undefined && current_total_a !== null) ? `${current_total_a.toFixed(2)} A` : '-- A';
-        if (current5V) current5V.textContent = (current_5v_a !== undefined && current_5v_a !== null) ? `${current_5v_a.toFixed(2)} A` : '-- A';
-        if (current12V) current12V.textContent = (current_12v_a !== undefined && current_12v_a !== null) ? `${current_12v_a.toFixed(2)} A` : '-- A';
-        if (currentMotors) currentMotors.textContent = (current_motors_a !== undefined && current_motors_a !== null) ? `${current_motors_a.toFixed(2)} A` : '-- A';
-        if (currentGpio) currentGpio.textContent = (current_gpio_ma !== undefined && current_gpio_ma !== null) ? `${current_gpio_ma.toFixed(0)} mA` : '-- mA';
-        if (wifiSsidEl) wifiSsidEl.textContent = (wifi_ssid !== undefined && wifi_ssid !== null) ? wifi_ssid : '--';
-        if (wifiRssiEl) wifiRssiEl.textContent = (wifi_rssi_dbm !== undefined && wifi_rssi_dbm !== null) ? `${wifi_rssi_dbm} dBm` : '-- dBm';
-    } catch (e) {
-        console.error('pollStatus error', e);
-    } finally {
-        pendingRequests.delete('status');
-    }
+    // HTTP polling completely disabled - use WebSocket only
+    console.warn('HTTP pollStatus disabled - use WebSocket instead');
+    return;
 }
 
 // Rate limiting to prevent overwhelming server
@@ -227,95 +186,13 @@ export async function sendBaseCommand(vLinear, vAngular, emergency = false) {
 }
 
 export async function sendArmCommand(extend, gripper, turretAngle) {
-    const now = Date.now();
-    if (now - lastArmCommandTime < COMMAND_RATE_LIMIT) {
-        return; // Skip this command due to rate limiting
-    }
-
-    // Skip duplicate commands
-    if (Math.abs(extend - lastArmCommand.extend) < 0.01 && 
-        Math.abs(gripper - lastArmCommand.gripper) < 0.01 && 
-        Math.abs(turretAngle - lastArmCommand.turretAngle) < 0.01) {
-        return;
-    }
-
-    lastArmCommandTime = now;
-    lastArmCommand = { extend, gripper, turretAngle };
-
-    // Skip all commands if connection is disabled
-    if (connectionStatus === 'disabled') {
-        return;
-    }
-
-    // Skip commands if we've had too many failures
-    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        return;
-    }
-
-    // Only check connection if we're not already sure it's disconnected
-    if (connectionStatus !== 'disconnected') {
-        const status = await checkConnection();
-        if (status === 'disconnected' || status === 'disabled') {
-            return; // Skip command if server is not available
-        }
-    }
-
-    try {
-        const response = await fetch('/api/arm', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ extend, gripper, turretAngle }),
-            signal: AbortSignal.timeout(800) // Shorter timeout
-        });
-        
-        if (!response.ok) {
-            consecutiveFailures++;
-            connectionStatus = 'disconnected';
-            return;
-        }
-        
-        // Success - reset failure counter and confirm connection
-        consecutiveFailures = 0;
-        connectionStatus = 'connected';
-        
-    } catch (e) {
-        consecutiveFailures++;
-        connectionStatus = 'disconnected';
-        return;
-    }
+    // HTTP commands completely disabled - use WebSocket only
+    console.warn('HTTP sendArmCommand disabled - use WebSocket instead');
+    return;
 }
 
 export async function pollJointState() {
-    // Skip all polling if connection is disabled
-    if (connectionStatus === 'disabled') {
-        return;
-    }
-    
-    // Check if request already pending
-    if (pendingRequests.has('joint_state')) {
-        return;
-    }
-    
-    pendingRequests.add('joint_state');
-    
-    try {
-        const r = await fetch('/api/joint_state', { signal: AbortSignal.timeout(500) });
-        if (!r.ok) return;
-        const d = await r.json();
-
-        if (d.arm) {
-            const { turret_deg, arm_ext, gripper } = d.arm;
-            const turretEl = document.getElementById('lblTurret');
-            const armEl = document.getElementById('lblArm');
-            const gripEl = document.getElementById('lblGripper');
-
-            if (turretEl) turretEl.textContent = `${turret_deg.toFixed(1)} °`;
-            if (armEl) armEl.textContent = `${(arm_ext * 100).toFixed(1)} %`;
-            if (gripEl) gripEl.textContent = `${(gripper * 100).toFixed(1)} %`;
-        }
-    } catch (e) {
-        console.error('pollJointState error', e);
-    } finally {
-        pendingRequests.delete('joint_state');
-    }
+    // HTTP polling completely disabled - use WebSocket only
+    console.warn('HTTP pollJointState disabled - use WebSocket instead');
+    return;
 }

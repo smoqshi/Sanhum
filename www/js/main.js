@@ -25,18 +25,13 @@ function init() {
 
     requestAnimationFrame(loop);
 
-    // периодический опрос статуса и суставов - reduced frequency
-    statusInterval = setInterval(() => {
-        if (getConnectionStatus() === 'connected') {
-            pollStatus();
-        }
-    }, 2000);  // Reduced from 500ms to 2s
+    // HTTP polling completely disabled to prevent server spam
+    // Only WebSocket communication is used for real-time control
+    console.log('HTTP polling disabled - using WebSocket only');
     
-    jointInterval = setInterval(() => {
-        if (getConnectionStatus() === 'connected') {
-            pollJointState();
-        }
-    }, 1000);  // Reduced from 200ms to 1s
+    // Keep interval references but don't start them
+    statusInterval = null;
+    jointInterval = null;
 }
 
 function loop(timestamp) {

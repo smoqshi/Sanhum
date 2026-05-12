@@ -7,11 +7,20 @@ Replaces UDP for browser compatibility
 
 import asyncio
 import json
-import websockets
+import sys
 import threading
 import time
 import logging
 from typing import Dict, Any, Set
+
+# Check if websockets is available
+try:
+    import websockets
+    print("websockets library imported successfully")
+except ImportError as e:
+    print(f"ERROR: websockets library not found: {e}")
+    print("Please install with: pip install websockets")
+    sys.exit(1)
 
 # Configure logging for WebSocket system
 # Logs appear in terminal AND saved to file
@@ -212,6 +221,7 @@ class WebSocketServer:
 
 async def main():
     """Main function to run the WebSocket server"""
+    print("Starting WebSocket server...")
     server = WebSocketServer()
     
     try:
@@ -219,6 +229,10 @@ async def main():
     except KeyboardInterrupt:
         logger.info("Shutting down WebSocket server...")
         server.stop()
+    except Exception as e:
+        logger.error(f"WebSocket server failed: {e}")
+        print(f"WebSocket server failed: {e}")
 
 if __name__ == "__main__":
+    print("WebSocket server startup script")
     asyncio.run(main())

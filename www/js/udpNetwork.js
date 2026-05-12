@@ -20,12 +20,14 @@ let lastSpeedInfo = {
 
 export function initUdpNetwork() {
     try {
+        console.log(`Initializing WebSocket connection to ws://${udpServerHost}:${udpServerPort}`);
+        
         // Create UDP socket using WebRTC data channel for UDP-like communication
         // Since browsers don't support raw UDP, we'll use WebSocket as UDP proxy
         udpSocket = new WebSocket(`ws://${udpServerHost}:${udpServerPort}`);
         
         udpSocket.onopen = () => {
-            console.log('UDP WebSocket connected');
+            console.log('WebSocket connected successfully');
             udpConnected = true;
         };
         
@@ -42,22 +44,22 @@ export function initUdpNetwork() {
                     updateSpeedDisplay();
                 }
             } catch (e) {
-                console.error('UDP message parse error:', e);
+                console.error('WebSocket message parse error:', e);
             }
         };
         
         udpSocket.onerror = (error) => {
-            console.error('UDP WebSocket error:', error);
+            console.error('WebSocket error:', error);
             udpConnected = false;
         };
         
         udpSocket.onclose = () => {
-            console.log('UDP WebSocket disconnected');
+            console.log('WebSocket disconnected');
             udpConnected = false;
         };
         
     } catch (e) {
-        console.error('Failed to initialize UDP network:', e);
+        console.error('Failed to initialize WebSocket network:', e);
     }
 }
 
