@@ -108,11 +108,14 @@ void RobotModel::updateMotorsFromCommand()
     m_motorDriver->setLeftMotor(left.first, left.second);
     m_motorDriver->setRightMotor(right.first, right.second);
 
-    qDebug() << "updateMotorsFromCommand:"
-             << "v=" << m_v << "w=" << m_w
-             << "vL=" << vL << "vR=" << vR
-             << "nL=" << nL << "nR=" << nR
-             << "dutyL=" << left.second << "dutyR=" << right.second;
+    // Only log when commands are non-zero (reduce spam)
+    if (std::abs(m_v) > 1e-6 || std::abs(m_w) > 1e-6) {
+        qDebug() << "updateMotorsFromCommand:"
+                 << "v=" << m_v << "w=" << m_w
+                 << "vL=" << vL << "vR=" << vR
+                 << "nL=" << nL << "nR=" << nR
+                 << "dutyL=" << left.second << "dutyR=" << right.second;
+    }
 }
 
 // ===== МАНИПУЛЯТОР =====
