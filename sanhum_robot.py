@@ -41,6 +41,8 @@ try:
     GAMEPAD_AVAILABLE = True
 except ImportError:
     GAMEPAD_AVAILABLE = False
+    print("⚠️  Pygame not found - gamepad support disabled")
+    print("💡 Install pygame for gamepad support: pip install pygame")
 
 # GPIO support (RPi only)
 try:
@@ -273,27 +275,31 @@ class SanhumRobot:
     def init_gamepad(self):
         """Initialize gamepad"""
         if not GAMEPAD_AVAILABLE:
-            print("⚠️  Pygame not available - install with: pip install pygame")
+            print("❌ Gamepad not available - pygame not installed")
+            print("💡 To enable gamepad support, install pygame:")
+            print("   pip install pygame")
             return False
         
         try:
             pygame.init()
             pygame.joystick.init()
             
-            if pygame.joystick.get_count() > 0:
-                self.gamepad = pygame.joystick.Joystick(0)
-                self.gamepad.init()
-                self.gamepad_connected = True
-                print(f"✅ Gamepad connected: {self.gamepad.get_name()}")
-                print(f"📊 Axes: {self.gamepad.get_numaxes()}, Buttons: {self.gamepad.get_numbuttons()}")
-                self.calibrate_gamepad()
-                return True
-            else:
+            if pygame.joystick.get_count() == 0:
                 print("❌ No gamepad found")
+                print("💡 Connect a gamepad and try again")
                 return False
+            
+            self.gamepad = pygame.joystick.Joystick(0)
+            self.gamepad.init()
+            self.gamepad_connected = True
+            print(f"✅ Gamepad connected: {self.gamepad.get_name()}")
+            print(f"📊 Axes: {self.gamepad.get_numaxes()}, Buttons: {self.gamepad.get_numbuttons()}")
+            self.calibrate_gamepad()
+            return True
                 
         except Exception as e:
-            print(f"❌ Gamepad error: {e}")
+            print(f"❌ Gamepad initialization error: {e}")
+            self.gamepad_connected = False
             return False
 
     def calibrate_gamepad(self):
@@ -690,7 +696,12 @@ async def test_gamepad():
     print("="*50)
     
     if not GAMEPAD_AVAILABLE:
-        print("❌ Pygame not available - install with: pip install pygame")
+        print("❌ Pygame not available - gamepad support disabled")
+        print("💡 To enable gamepad support, install pygame:")
+        print("   pip install pygame")
+        print()
+        print("📋 After installing pygame, run:")
+        print("   python3 sanhum_robot.py --mode gamepad-test")
         return
     
     try:
