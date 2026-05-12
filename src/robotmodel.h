@@ -55,6 +55,14 @@ private:
     double m_maxWheelLinear; // макс. линейная скорость колеса при duty=100%, м/с
 
     void updateMotorsFromCommand();
+
+    // Static helper functions for sensor reading
+    static double readBatteryVoltage();
+    static double readCpuTempC();
+    static double readBoardTempC();
+    static double readCpuLoadPercent();
+    static void readWifiInfo(QString &ssidOut, int &rssiOut);
+    static bool isRunningOnRaspberry();
 };
 
 #endif // ROBOTMODEL_H

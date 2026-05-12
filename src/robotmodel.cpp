@@ -143,7 +143,7 @@ void RobotModel::setTurretAngle(double angleDeg)
 
 // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ СТАТУСА =====
 
-static bool isRunningOnRaspberry()
+bool RobotModel::isRunningOnRaspberry()
 {
 #ifdef Q_OS_LINUX
     QFile f("/proc/device-tree/model");
@@ -156,7 +156,7 @@ static bool isRunningOnRaspberry()
 #endif
 }
 
-static double readCpuTempC()
+double RobotModel::readCpuTempC()
 {
 #ifdef Q_OS_LINUX
     QFile f("/sys/class/thermal/thermal_zone0/temp");
@@ -172,7 +172,7 @@ static double readCpuTempC()
     return 0.0;
 }
 
-static double readBoardTempC()
+double RobotModel::readBoardTempC()
 {
 #ifdef Q_OS_LINUX
     return readCpuTempC();
@@ -181,7 +181,7 @@ static double readBoardTempC()
 #endif
 }
 
-static double readCpuLoadPercent()
+double RobotModel::readCpuLoadPercent()
 {
 #ifdef Q_OS_LINUX
     QFile f("/proc/loadavg");
@@ -195,7 +195,7 @@ static double readCpuLoadPercent()
     return 0.0;
 }
 
-static void readWifiInfo(QString &ssidOut, int &rssiOut)
+void RobotModel::readWifiInfo(QString &ssidOut, int &rssiOut)
 {
     ssidOut = QStringLiteral("--");
     rssiOut = 0;
@@ -228,7 +228,7 @@ static void readWifiInfo(QString &ssidOut, int &rssiOut)
 #endif
 }
 
-static double readBatteryVoltage()
+double RobotModel::readBatteryVoltage()
 {
 #ifdef Q_OS_LINUX
     // Try to read from ADC if available (e.g., from I2C ADC or GPIO ADC)
