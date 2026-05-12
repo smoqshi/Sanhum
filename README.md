@@ -12,7 +12,8 @@ python3 setup_and_run.py
 ### Manual Setup
 ```bash
 # Install dependencies
-sudo apt install qt5-qmake qtbase5-dev build-essential python3 libgpiod2 libgpiod-dev
+sudo apt update
+sudo apt install qt5-qmake qtbase5-dev build-essential python3 libgpiod2 libgpiod-dev libgpiod++-dev
 
 # Build
 mkdir build && cd build

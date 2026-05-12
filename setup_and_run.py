@@ -76,10 +76,26 @@ class SanhumSetup:
             print(f"\n📦 Installing missing dependencies: {', '.join(missing)}")
             try:
                 subprocess.run(['sudo', 'apt', 'update'], check=True)
+                
+                # Install base packages
                 subprocess.run(['sudo', 'apt', 'install', '-y', 
                               'qt5-qmake', 'qtbase5-dev', 'qtbase5-dev-tools',
-                              'build-essential', 'python3', 'python3-pip',
-                              'libgpiod2', 'libgpiod-dev'], check=True)
+                              'build-essential', 'python3', 'python3-pip'], check=True)
+                
+                # Install GPIO libraries with fallback options
+                gpio_packages = ['libgpiod2', 'libgpiod-dev', 'libgpiod++-dev']
+                try:
+                    subprocess.run(['sudo', 'apt', 'install', '-y'] + gpio_packages, check=True)
+                except subprocess.CalledProcessError:
+                    print("⚠️ Standard GPIO packages failed, trying alternatives...")
+                    # Try alternative package names
+                    alt_packages = ['libgpiod2-dev', 'gpiod', 'libgpiod-cxx-dev']
+                    for pkg in alt_packages:
+                        try:
+                            subprocess.run(['sudo', 'apt', 'install', '-y', pkg], check=False)
+                        except:
+                            continue
+                
                 print("✅ Dependencies installed successfully")
             except subprocess.CalledProcessError as e:
                 print(f"❌ Failed to install dependencies: {e}")
